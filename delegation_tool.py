@@ -25,7 +25,6 @@ default_weaknesses = [
     "Disorganized digital workspace", "Doesn’t document processes", "Uncomfortable giving or receiving feedback"
 ]
 
-# Session state
 if "employees" not in st.session_state:
     st.session_state.employees = []
 if "tasks" not in st.session_state:
@@ -77,7 +76,8 @@ with st.form("task_form"):
         st.session_state.tasks.append({
             "description": task_desc.strip(),
             "time_spent": task_time,
-            "delegatable": delegatable == "Yes"
+            "delegatable": delegatable == "Yes",
+            "manual_override": None
         })
         st.success(f"Added task: {task_desc}")
 
@@ -94,16 +94,22 @@ if st.session_state.tasks:
                 st.experimental_rerun()
 
 # Matching logic
+def get_similarity(task_desc, strength):
+    return SequenceMatcher(None, task_desc.lower(), strength).ratio()
+
 def find_best_match(task_desc, employees):
     best_match = None
     best_score = 0
+    scores = []
     for emp in employees:
         for strength in emp["strengths"]:
-            score = SequenceMatcher(None, task_desc.lower(), strength).ratio()
+            score = get_similarity(task_desc, strength)
+            scores.append((emp, score))
             if score > best_score:
                 best_score = score
                 best_match = emp
-    return best_match if best_score > 0.4 else None
+    scores.sort(key=lambda x: x[1], reverse=True)
+    return best_match if best_score > 0.4 else None, scores[:2]
 
 # Delegation output
 st.header("3. Delegation Recommendations")
@@ -111,12 +117,23 @@ if st.button("Run Delegation Match"):
     if not st.session_state.employees or not st.session_state.tasks:
         st.warning("Please add both employees and tasks before running the match.")
     else:
-        for task in st.session_state.tasks:
+        for idx, task in enumerate(st.session_state.tasks):
             if task["delegatable"]:
-                match = find_best_match(task["description"], st.session_state.employees)
+                match, top_matches = find_best_match(task["description"], st.session_state.employees)
                 if match:
                     st.success(f"'{task['description']}' → {match['name']} ({match['role']})")
                 else:
                     st.warning(f"No strong match found for: '{task['description']}'")
+                    if top_matches:
+                        st.markdown("**Closest Matches:**")
+                        for candidate, score in top_matches:
+                            st.markdown(f"- {candidate['name']} ({candidate['role']}) – Similarity: {round(score, 2)}")
+                        manual_choice = st.selectbox(
+                            f"Manually assign '{task['description']}'?",
+                            [None] + [emp["name"] for emp in st.session_state.employees],
+                            key=f"manual_override_{idx}"
+                        )
+                        if manual_choice:
+                            st.info(f"'{task['description']}' manually assigned to {manual_choice}")
             else:
                 st.info(f"Keep this task: '{task['description']}'")
