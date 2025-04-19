@@ -98,18 +98,14 @@ def get_similarity(task_desc, strength):
     return SequenceMatcher(None, task_desc.lower(), strength).ratio()
 
 def find_best_match(task_desc, employees):
-    best_match = None
-    best_score = 0
-    scores = []
+    emp_scores = {}
     for emp in employees:
-        for strength in emp["strengths"]:
-            score = get_similarity(task_desc, strength)
-            scores.append((emp, score))
-            if score > best_score:
-                best_score = score
-                best_match = emp
-    scores.sort(key=lambda x: x[1], reverse=True)
-    return best_match if best_score > 0.4 else None, scores[:2]
+        max_score = max((get_similarity(task_desc, s) for s in emp["strengths"]), default=0)
+        emp_scores[emp["name"]] = (emp, max_score)
+
+    sorted_scores = sorted(emp_scores.values(), key=lambda x: x[1], reverse=True)
+    best_match = sorted_scores[0][0] if sorted_scores and sorted_scores[0][1] > 0.4 else None
+    return best_match, sorted_scores[:2]
 
 # Delegation output
 st.header("3. Delegation Recommendations")
