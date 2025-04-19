@@ -7,26 +7,31 @@ st.set_page_config(page_title="Delegation Assistant", layout="centered")
 st.title("Delegation Assistant Tool")
 st.write("Match your tasks to the best-fit team members based on their strengths.")
 
-# Predefined options
+# Expanded options
 default_strengths = [
-    "Scheduling", "Email management", "Customer service", "Cold calling", "Data entry",
-    "Reporting", "Sales follow-up", "Creative thinking", "Social media", "Inventory tracking",
-    "Order processing", "Project management", "Vendor communication", "Bookkeeping"
+    "Task prioritization", "Calendar & meeting management", "CRM usage", "Invoicing & payment follow-up",
+    "Vendor communication", "Managing inbox", "Taking notes during meetings", "Creating SOPs",
+    "Spreadsheet building", "Data cleanup", "Travel booking", "Project tracking", "Social media scheduling",
+    "Customer follow-up", "Cold calling", "Warm lead nurturing", "Quote generation", "Order processing",
+    "Inventory tracking", "Creating reports", "Writing professional emails", "Problem-solving under pressure",
+    "Cross-functional coordination", "File and folder organization", "Research & summarizing information"
 ]
 
 default_weaknesses = [
-    "Detail orientation", "Cold outreach", "Managing time", "Public speaking", "Data analysis",
-    "Technical skills", "Creative thinking", "Phone communication"
+    "Easily overwhelmed with multi-tasking", "Avoids confrontation or client follow-up", "Not detail-oriented",
+    "Struggles with written communication", "Doesn’t enjoy phone calls", "Gets distracted easily",
+    "Avoids complex spreadsheets or numbers", "Uncomfortable with tech tools or new software",
+    "Poor time estimation", "Doesn’t take initiative", "Slow response time", "Struggles with follow-through",
+    "Disorganized digital workspace", "Doesn’t document processes", "Uncomfortable giving or receiving feedback"
 ]
 
-# Session state to store employees and tasks
+# Session state
 if "employees" not in st.session_state:
     st.session_state.employees = []
-
 if "tasks" not in st.session_state:
     st.session_state.tasks = []
 
-# Employee Entry
+# Employee form
 st.header("1. Add Employee")
 with st.form("employee_form"):
     name = st.text_input("Name")
@@ -37,7 +42,7 @@ with st.form("employee_form"):
     custom_weakness = st.text_input("Custom Weakness (optional)")
     submitted = st.form_submit_button("Add Employee")
 
-    if submitted:
+    if submitted and name:
         all_strengths = strengths + ([custom_strength] if custom_strength else [])
         all_weaknesses = weaknesses + ([custom_weakness] if custom_weakness else [])
         st.session_state.employees.append({
@@ -48,7 +53,19 @@ with st.form("employee_form"):
         })
         st.success(f"Added employee: {name}")
 
-# Task Entry
+# View and remove employees
+if st.session_state.employees:
+    st.subheader("Current Employees")
+    for i, emp in enumerate(st.session_state.employees):
+        col1, col2 = st.columns([4, 1])
+        with col1:
+            st.markdown(f"**{emp['name']}** – {emp['role']}")
+        with col2:
+            if st.button("Remove", key=f"remove_emp_{i}"):
+                st.session_state.employees.pop(i)
+                st.experimental_rerun()
+
+# Task form
 st.header("2. Time Audit - Add Task")
 with st.form("task_form"):
     task_desc = st.text_input("Task Description")
@@ -56,7 +73,7 @@ with st.form("task_form"):
     delegatable = st.radio("Would you like to delegate this task?", ("Yes", "No"))
     task_submitted = st.form_submit_button("Add Task")
 
-    if task_submitted:
+    if task_submitted and task_desc:
         st.session_state.tasks.append({
             "description": task_desc.strip(),
             "time_spent": task_time,
@@ -64,7 +81,19 @@ with st.form("task_form"):
         })
         st.success(f"Added task: {task_desc}")
 
-# Matching Logic
+# View and remove tasks
+if st.session_state.tasks:
+    st.subheader("Current Tasks")
+    for i, task in enumerate(st.session_state.tasks):
+        col1, col2 = st.columns([4, 1])
+        with col1:
+            st.markdown(f"**{task['description']}** – {task['time_spent']} mins – Delegatable: {task['delegatable']}")
+        with col2:
+            if st.button("Remove", key=f"remove_task_{i}"):
+                st.session_state.tasks.pop(i)
+                st.experimental_rerun()
+
+# Matching logic
 def find_best_match(task_desc, employees):
     best_match = None
     best_score = 0
@@ -76,7 +105,7 @@ def find_best_match(task_desc, employees):
                 best_match = emp
     return best_match if best_score > 0.4 else None
 
-# Delegation Output
+# Delegation output
 st.header("3. Delegation Recommendations")
 if st.button("Run Delegation Match"):
     if not st.session_state.employees or not st.session_state.tasks:
