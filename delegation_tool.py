@@ -1,6 +1,8 @@
 
 import streamlit as st
 from difflib import SequenceMatcher
+import pandas as pd
+import io
 
 st.set_page_config(page_title="Delegation Assistant", layout="centered")
 
@@ -29,6 +31,48 @@ if "employees" not in st.session_state:
     st.session_state.employees = []
 if "tasks" not in st.session_state:
     st.session_state.tasks = []
+if "delegation_history" not in st.session_state:
+    st.session_state.delegation_history = []
+
+# Reset functionality
+if st.button("🔄 Reset App (Clear All Data)"):
+    st.session_state.employees = []
+    st.session_state.tasks = []
+    st.session_state.delegation_history = []
+    st.experimental_rerun()
+
+# Import employees from CSV
+uploaded_file = st.file_uploader("📥 Upload Employee List (CSV)", type="csv")
+if uploaded_file:
+    df = pd.read_csv(uploaded_file)
+    for _, row in df.iterrows():
+        st.session_state.employees.append({
+            "name": row["name"],
+            "role": row["role"],
+            "strengths": [s.strip().lower() for s in row["strengths"].split(";")],
+            "weaknesses": [w.strip().lower() for w in row["weaknesses"].split(";")]
+        })
+    st.success("Employee list uploaded successfully!")
+
+# Export employees to CSV
+def convert_employees_to_csv():
+    data = []
+    for emp in st.session_state.employees:
+        data.append({
+            "name": emp["name"],
+            "role": emp["role"],
+            "strengths": ";".join(emp["strengths"]),
+            "weaknesses": ";".join(emp["weaknesses"])
+        })
+    return pd.DataFrame(data).to_csv(index=False)
+
+if st.session_state.employees:
+    st.download_button(
+        label="📤 Download Employee List (CSV)",
+        data=convert_employees_to_csv(),
+        file_name="employee_list.csv",
+        mime="text/csv"
+    )
 
 # Employee form
 st.header("1. Add Employee")
@@ -107,17 +151,23 @@ def find_best_match(task_desc, employees):
     best_match = sorted_scores[0][0] if sorted_scores and sorted_scores[0][1] > 0.4 else None
     return best_match, sorted_scores[:2]
 
-# Delegation output
+# Delegation output + history log
 st.header("3. Delegation Recommendations")
 if st.button("Run Delegation Match"):
     if not st.session_state.employees or not st.session_state.tasks:
         st.warning("Please add both employees and tasks before running the match.")
     else:
+        st.session_state.delegation_history.clear()
         for idx, task in enumerate(st.session_state.tasks):
             if task["delegatable"]:
                 match, top_matches = find_best_match(task["description"], st.session_state.employees)
                 if match:
                     st.success(f"'{task['description']}' → {match['name']} ({match['role']})")
+                    st.session_state.delegation_history.append({
+                        "Task": task["description"],
+                        "Assigned To": match["name"],
+                        "Role": match["role"]
+                    })
                 else:
                     st.warning(f"No strong match found for: '{task['description']}'")
                     if top_matches:
@@ -131,5 +181,23 @@ if st.button("Run Delegation Match"):
                         )
                         if manual_choice:
                             st.info(f"'{task['description']}' manually assigned to {manual_choice}")
+                            st.session_state.delegation_history.append({
+                                "Task": task["description"],
+                                "Assigned To": manual_choice,
+                                "Role": "Manual Assignment"
+                            })
             else:
                 st.info(f"Keep this task: '{task['description']}'")
+
+# Delegation history export
+if st.session_state.delegation_history:
+    st.subheader("📚 Delegation History Log")
+    df_history = pd.DataFrame(st.session_state.delegation_history)
+    st.dataframe(df_history)
+    csv = df_history.to_csv(index=False)
+    st.download_button(
+        label="📥 Download Delegation History",
+        data=csv,
+        file_name="delegation_history.csv",
+        mime="text/csv"
+    )
